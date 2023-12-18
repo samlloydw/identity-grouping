@@ -33,8 +33,19 @@ pub fn atomic_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
     groups
 }
 
-pub fn _ungroup<T>(_grouped: Vec<(T, T)>) -> Vec<T> {
-    todo!()
+pub fn atomic_ungroup<T: AtomicStep>(grouped: Vec<(T, T)>) -> Vec<T>
+where T: AtomicStep + Add<Output=T> + Copy {
+    let mut ungrouped = Vec::new();
+    for group in grouped {
+        let start = group.0;
+        let end = group.1;
+        let mut current = start;
+        while current <= end {
+            ungrouped.push(current);
+            current = current + current.atomic_step();
+        }
+    }
+    ungrouped
 }
 
 #[cfg(test)]
@@ -81,14 +92,17 @@ mod test {
     fn test_empty() {
         let mut group = atomic_group(0..1);
         assert_eq!(group, Vec::from([(0, 0)]));
+        assert_eq!(atomic_ungroup(group.clone()), Vec::from([0]));
         group = atomic_group(0..0);
         assert_eq!(group, Vec::new());
+        assert_eq!(atomic_ungroup(group), Vec::new());
     }
 
     #[test]
     fn test_positives() {
         let group = atomic_group(positives());
         assert_eq!(group, Vec::from([(0, 9), (20, 30), (45,49), (60, 60)]));
+        assert_eq!(atomic_ungroup(group.clone()), positives().collect::<Vec<_>>());
         let chained_group = atomic_group(positives().chain(61..65));
         assert_eq!(chained_group, Vec::from([(0, 9), (20, 30), (45,49), (60, 64)]));
     }
@@ -98,12 +112,14 @@ mod test {
     fn test_negatives() {
         let group = atomic_group(negatives());
         assert_eq!(group, Vec::from([(-50, -46), (-20, -6), (-3,9)]));
+        assert_eq!(atomic_ungroup(group.clone()), negatives().collect::<Vec<_>>());
     }
 
     #[test]
     fn test_overlap() {
         let group = atomic_group(overlap());
         assert_eq!(group, Vec::from([(-50, -46), (-48, -21), (0, 9), (-5, 9)]));
+        assert_eq!(atomic_ungroup(group.clone()), overlap().collect::<Vec<_>>());
     }
 
     #[test]
@@ -115,6 +131,6 @@ mod test {
         let evens = Vec::from([Evens(2), Evens(4), Evens(6), Evens(4), Evens(6), Evens(8)]);
         let group = atomic_group(evens.into_iter());
         assert_eq!(group, Vec::from([( Evens(2), Evens(6) ), ( Evens(4), Evens(8) )]));
-
+        assert_eq!(atomic_ungroup(group), Vec::from([Evens(2), Evens(4), Evens(6), Evens(4), Evens(6), Evens(8)]));
     }
 }
