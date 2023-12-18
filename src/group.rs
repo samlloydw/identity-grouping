@@ -1,6 +1,6 @@
 use std::ops::Add;
 
-use super::atomic_step::AtomicStep;
+use super::identity::Identity;
 
 /// Group immediately sucessive elements in an iterator together.
 /// Returns a vector of tuples containing the start and end of 
@@ -8,8 +8,8 @@ use super::atomic_step::AtomicStep;
 /// 
 /// Iterator elements have to have an atomic step size so they can 
 /// be discreetly checked.
-pub fn atomic_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
-    where T: AtomicStep + Add<Output=T> + Copy
+pub fn sequential_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
+    where T: Identity + Add<Output=T> + Copy
 {
     let mut groups = Vec::new();
     let mut next = sequence.next();
@@ -18,7 +18,7 @@ pub fn atomic_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
         loop {
             match sequence.next() {
                 Some(value) => {
-                    if current + current.atomic_step() == value {
+                    if current + current.identity() == value {
                         current = value;
                     } else {
                         next = Some(value);
@@ -33,8 +33,8 @@ pub fn atomic_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
     groups
 }
 
-pub fn atomic_ungroup<T: AtomicStep>(grouped: Vec<(T, T)>) -> Vec<T>
-where T: AtomicStep + Add<Output=T> + Copy {
+pub fn sequential_ungroup<T: Identity>(grouped: Vec<(T, T)>) -> Vec<T>
+where T: Identity + Add<Output=T> + Copy {
     let mut ungrouped = Vec::new();
     for group in grouped {
         let start = group.0;
@@ -42,7 +42,7 @@ where T: AtomicStep + Add<Output=T> + Copy {
         let mut current = start;
         while current <= end {
             ungrouped.push(current);
-            current = current + current.atomic_step();
+            current = current + current.identity();
         }
     }
     ungrouped
@@ -68,8 +68,8 @@ mod test {
             }
         }
 
-        impl AtomicStep for Evens {
-            fn atomic_step(&self) -> Self {
+        impl Identity for Evens {
+            fn identity(&self) -> Self {
                 Self(2)
             }
         }
@@ -90,47 +90,47 @@ mod test {
 
     #[test]
     fn test_empty() {
-        let mut group = atomic_group(0..1);
+        let mut group = sequential_group(0..1);
         assert_eq!(group, Vec::from([(0, 0)]));
-        assert_eq!(atomic_ungroup(group.clone()), Vec::from([0]));
-        group = atomic_group(0..0);
+        assert_eq!(sequential_ungroup(group.clone()), Vec::from([0]));
+        group = sequential_group(0..0);
         assert_eq!(group, Vec::new());
-        assert_eq!(atomic_ungroup(group), Vec::new());
+        assert_eq!(sequential_ungroup(group), Vec::new());
     }
 
     #[test]
     fn test_positives() {
-        let group = atomic_group(positives());
+        let group = sequential_group(positives());
         assert_eq!(group, Vec::from([(0, 9), (20, 30), (45,49), (60, 60)]));
-        assert_eq!(atomic_ungroup(group.clone()), positives().collect::<Vec<_>>());
-        let chained_group = atomic_group(positives().chain(61..65));
+        assert_eq!(sequential_ungroup(group.clone()), positives().collect::<Vec<_>>());
+        let chained_group = sequential_group(positives().chain(61..65));
         assert_eq!(chained_group, Vec::from([(0, 9), (20, 30), (45,49), (60, 64)]));
     }
 
 
     #[test]
     fn test_negatives() {
-        let group = atomic_group(negatives());
+        let group = sequential_group(negatives());
         assert_eq!(group, Vec::from([(-50, -46), (-20, -6), (-3,9)]));
-        assert_eq!(atomic_ungroup(group.clone()), negatives().collect::<Vec<_>>());
+        assert_eq!(sequential_ungroup(group.clone()), negatives().collect::<Vec<_>>());
     }
 
     #[test]
     fn test_overlap() {
-        let group = atomic_group(overlap());
+        let group = sequential_group(overlap());
         assert_eq!(group, Vec::from([(-50, -46), (-48, -21), (0, 9), (-5, 9)]));
-        assert_eq!(atomic_ungroup(group.clone()), overlap().collect::<Vec<_>>());
+        assert_eq!(sequential_ungroup(group.clone()), overlap().collect::<Vec<_>>());
     }
 
     #[test]
     fn larger_step() {
         use evens::Evens;
         let evens = Vec::from([Evens(2), Evens(4), Evens(6), Evens(10)]);
-        let group = atomic_group(evens.into_iter());
+        let group = sequential_group(evens.into_iter());
         assert_eq!(group, Vec::from([( Evens(2), Evens(6) ), ( Evens(10), Evens(10) )]));
         let evens = Vec::from([Evens(2), Evens(4), Evens(6), Evens(4), Evens(6), Evens(8)]);
-        let group = atomic_group(evens.into_iter());
+        let group = sequential_group(evens.into_iter());
         assert_eq!(group, Vec::from([( Evens(2), Evens(6) ), ( Evens(4), Evens(8) )]));
-        assert_eq!(atomic_ungroup(group), Vec::from([Evens(2), Evens(4), Evens(6), Evens(4), Evens(6), Evens(8)]));
+        assert_eq!(sequential_ungroup(group), Vec::from([Evens(2), Evens(4), Evens(6), Evens(4), Evens(6), Evens(8)]));
     }
 }
