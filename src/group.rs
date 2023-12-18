@@ -6,8 +6,7 @@ use super::identity::Identity;
 /// Returns a vector of tuples containing the start and end of 
 /// each group.
 /// 
-/// Iterator elements have to have an atomic step size so they can 
-/// be discreetly checked.
+/// Iterator elements have to have an identity size.
 pub fn sequential_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
     where T: Identity + Add<Output=T> + Copy
 {
@@ -33,8 +32,17 @@ pub fn sequential_group<T>(mut sequence: impl Iterator<Item=T>) -> Vec<(T, T)>
     groups
 }
 
+/// Takes a vector of start and end values of a discrete series and returns
+///  a flattened vector of all the values in-between (inclusive).
+/// 
+/// Panics if the end of each tuple is less than the start value.
+/// Future implmentation may allow a subtracting identities.
 pub fn sequential_ungroup<T: Identity>(grouped: Vec<(T, T)>) -> Vec<T>
 where T: Identity + Add<Output=T> + Copy {
+    match grouped.iter().all(|group| group.0 <= group.1) {
+        true => {},
+        false => { panic!("All groups in vector cannot have a start that is greater than the end") },
+    }
     let mut ungrouped = Vec::new();
     for group in grouped {
         let start = group.0;
@@ -120,6 +128,12 @@ mod test {
         let group = sequential_group(overlap());
         assert_eq!(group, Vec::from([(-50, -46), (-48, -21), (0, 9), (-5, 9)]));
         assert_eq!(sequential_ungroup(group.clone()), overlap().collect::<Vec<_>>());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ungroup_order() {
+        sequential_ungroup(Vec::from([(2, -3), (5,4), (6,8), (0,0)]));
     }
 
     #[test]
